@@ -1,0 +1,148 @@
+#!/usr/bin/env python3
+
+import socket
+import json
+import argparse
+import sys
+import ssl
+
+
+# Creates the hello message, sends it to server to start game, and retrieves the game_id from the start message
+def hello_msg(sock, id):
+    hello_msg = {
+        "type" : "hello",
+        "northeastern_username" : id
+    }
+
+    data = json.dumps(hello_msg) + "\n"
+
+    sock.sendall(bytes(data.encode()))
+    start_msg = sock.recv(1024).decode('utf-8')
+    json_object = json.loads(start_msg)
+    id = json_object["id"]
+
+# Retrieves the servers message, 4096 bytes at a time, and then concatanates the whole message together
+def getServerMsg(sock):
+  config_msg = ""
+  while True:
+    # Ensures that you retrieve the full message and dont run out of bytes
+    message = sock.recv(4096).decode()
+    config_msg = config_msg + message
+    if message[-1] == "\n":
+        break
+  return config_msg
+
+
+# Guessing Strategy that guesses words in a loop until the game ends.
+# The game ends when the flag is retrieved, run out of guesses, error message, or invalid message from server
+def guessStrategy(sock, game_id):
+    # Holds current game's guessing information
+    not_in_word = []
+    wrong_position = []
+    right_position = []
+    
+    # Determines if you should send this "guess" to the server
+    def shouldIGuess(guess):
+        for char in guess:
+            if (char in not_in_word) and (char not in wrong_position) and (char not in right_position):
+                return False
+        return True
+
+    # Reads the marks for each guess that is made and adds it to the game information (3 arrays above)
+    def readMarks(server_msg, guess):
+        if json.loads(server_msg)["type"] == "retry":
+                marks = json.loads(server_msg)["guesses"][guess_number]["marks"]
+                
+                for i in range(len(marks)):
+                    if marks[i] == 2:
+                        right_position.append(guess[i])
+                    elif marks[i] == 1:
+                        wrong_position.append(guess[i])
+                    elif marks[i] == 0:
+                        not_in_word.append(guess[i])
+                
+
+    # Loops through word list, and if a word is "guessed", it reads the server's message
+    with open('project1-words.txt') as topo_file:
+        guess_number = 0
+        for line in topo_file:
+            guess = line.strip('\n')
+            
+            if shouldIGuess(guess) == False:
+                continue
+
+        
+            guess_msg = {
+                "type" : "guess",
+                "id" : game_id,
+                "word" : guess
+            }
+
+            data = json.dumps(guess_msg) + "\n"
+            sock.sendall(bytes(data.encode()))
+            server_msg = getServerMsg(sock)
+
+            if json.loads(server_msg)["type"] == "retry":
+                readMarks(server_msg, guess)
+            elif json.loads(server_msg)["type"] == "bye":
+                print(json.loads(server_msg)["flag"])
+                break
+            elif json.loads(server_msg)["type"] == "error":
+                print(json.loads(server_msg)["message"])
+                break
+            else:
+                print("INVALID MESSAGE FROM SERVER. TERMINATING PROGRAM")
+                quit()
+
+            guess_number+=1
+
+# Parses command line arguments
+def addParser():
+    parser = argparse.ArgumentParser(description='Parser command line arguments', usage='./client <-p port> <-s> [hostname] [neuid]')
+    parser.add_argument('-p', dest='port', type=int, required=False)
+    parser.add_argument('-s', action="store_true", default=False, required=False, dest='encrypted')
+    parser.add_argument('hostname')
+    parser.add_argument('neuid')
+    args = parser.parse_args(sys.argv[1:])
+    
+    return args
+
+
+# Main function
+def main():
+    args = addParser()
+    
+    port = 27993
+    host = args.hostname
+    neu_id = args.neuid
+
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(15)
+    
+    if args.encrypted:
+        port = 27994
+        sock = ssl.wrap_socket(sock)
+    
+    if args.port:
+        port = args.port
+
+    sock.connect((host, port))
+
+
+    game_id = hello_msg(sock, neu_id)
+
+    guessStrategy(sock, game_id)
+
+
+    sock.close()
+
+
+if __name__ == '__main__':
+  main()
+
+
+    
+
+  
+
+ 
