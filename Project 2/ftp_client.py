@@ -17,16 +17,18 @@ def add_parser():
     
     return args
 
+# Log into Server
 def log_in(sock):
-    data_user = 'USER wangjus\r\n'
+    data_user = 'USER ' + USER + '\r\n'
     sock.sendall(bytes(data_user.encode()))
     sock.recv(4096)
 
-    data_pass = 'PASS QFEt6svMOZLXhIp3DqgA\r\n'
+    data_pass = 'PASS ' + PASSWORD + '\r\n'
     sock.sendall(bytes(data_pass.encode()))
     log_in_message = sock.recv(4096)
     print(log_in_message)
 
+# Configure Conneciton
 def configure(sock):
     data_type = 'TYPE I\r\n'
     sock.sendall(bytes(data_type.encode()))
@@ -43,6 +45,7 @@ def configure(sock):
     message = sock.recv(4096)
     print(message)
 
+# Get Data Channel's IP and Port
 def get_data_channel_ip_port(sock):
     open_data_channel = 'PASV \r\n'
     sock.sendall(bytes(open_data_channel.encode()))
@@ -58,6 +61,7 @@ def get_data_channel_ip_port(sock):
 
     return (ip, port)
 
+# Open Data Channel
 def open_data_channel(ip, port):
     data_channel = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     data_channel.settimeout(15)
@@ -66,7 +70,7 @@ def open_data_channel(ip, port):
     return data_channel
     
     
-
+# Make a request to the FTP Server
 def request_operation(sock, oper, p1="", p2=""):
     if (oper == 'quit'):
         data = 'QUIT\r\n'
@@ -119,10 +123,7 @@ def request_operation(sock, oper, p1="", p2=""):
         
         
 
-        
-
-
-
+ # Processes params in command line and runs the specified operation       
 def run_operations(sock):
     while (True):
         # Parse command line 
@@ -156,7 +157,7 @@ def run_operations(sock):
 
 
     
-
+# Main Function
 def main():
     # Connection Information
     port = 21
