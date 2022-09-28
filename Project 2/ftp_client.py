@@ -1,4 +1,3 @@
-from ipaddress import ip_interface
 import socket
 import argparse
 import sys
@@ -11,8 +10,8 @@ PASSWORD = "QFEt6svMOZLXhIp3DqgA"
 def add_parser():
     parser = argparse.ArgumentParser(description='Parser command line arguments', usage='$./3700ftp [operation] [-p1 param1] [-p2 param2]')
     parser.add_argument('operation')
-    parser.add_argument('-p1', dest='param1', required=False)
-    parser.add_argument('-p2', dest='param2', required=False)
+    parser.add_argument("params", help="Parameters for operqation. These params will be one or two paths and/or URLs.", 
+    type=str,nargs='+')
     args = parser.parse_args(sys.argv[1:])
     
     return args
@@ -109,17 +108,45 @@ def request_operation(sock, oper, p1="", p2=""):
         ip_port = get_data_channel_ip_port(sock)
         data_channel = open_data_channel(ip_port[0], ip_port[1])
 
-        local_path = p1
-        url = urlparse(p2)
-        url_path = url[2]
-        data = 'STOR ' + local_path + " " + url_path + '\r\n'
-        print(data)
-        sock.sendall(bytes(data.encode()))
-        message = sock.recv(4096)
-        print(message)
-        data_message = data_channel.recv(4096)
-        print(data_message)
-        data_channel.close()
+        if (urlparse(p1)[0] != "ftp"):
+            print('uploading file to ftp server')
+            local_path = p1
+            url = urlparse(p2)
+
+            url = urlparse(p2)
+            url_path = url[2]
+            data = 'STOR ' + url_path + '\r\n'
+            print(data)
+            sock.sendall(bytes(data.encode()))
+            message = sock.recv(4096)
+            print(message)
+            
+            with open(local_path, 'rb') as f:
+                contents = f.read()
+                data_channel.sendall(bytes(contents))
+                #data_message = data_channel.recv(4096)
+                #print(data_message)
+                data_channel.close()
+            print(sock.recv(4096))
+            
+        else:
+            print('retrieving file from ftp server')
+            url = urlparse(p1)
+            url_path = url[2]
+            local_path = p2
+
+            data = 'RETR ' + url_path + '\r\n'
+            print(data)
+            sock.sendall(bytes(data.encode()))
+            message = sock.recv(4096)
+            print(message)
+            
+            file_content = data_channel.recv(4096).decode()
+            print(file_content)
+            with open(local_path, "w") as file:
+                # Writing data to a file
+                file.write(file_content)
+          
         
         
 
@@ -128,11 +155,12 @@ def run_operations(sock):
     while (True):
         # Parse command line 
         args = add_parser()
+        print(args)
         oper = args.operation
-        arg1 = args.param1
+        arg1 = args.params[0]
 
-        if (args.param2):
-            arg2 = args.param2
+        if (len(args.params) > 1):
+            arg2 = args.params[1]
         
         if oper == 'quit':
             request_operation(sock, oper)
@@ -150,9 +178,7 @@ def run_operations(sock):
             request_operation(sock, oper, url)
             break
         if oper == 'cp':
-            local_path = arg1
-            url_path = arg2
-            request_operation(sock, oper, local_path, url_path)
+            request_operation(sock, oper, arg1, arg2)
             break
 
 
